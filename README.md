@@ -56,3 +56,33 @@ File issues against the CLI or the cask in
 not against this tap. The tap repo only carries the generated cask;
 all CLI code, the cask template, and the release pipeline live in
 `microsoft/aspire`.
+
+## Reporting security issues
+
+**Do not report security vulnerabilities through public GitHub issues.**
+See [SECURITY.md](./SECURITY.md) for the security reporting process.
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to contribute and the
+Contributor License Agreement, and [SUPPORT.md](./SUPPORT.md) for where
+to get help.
+
+## Code of Conduct
+
+This project has adopted the
+[Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+For more information see the
+[Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any
+additional questions or comments.
+
+## Trademarks
+
+This project may contain trademarks or logos for projects, products, or
+services. Authorized use of Microsoft trademarks or logos is subject to
+and must follow
+[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
+Use of Microsoft trademarks or logos in modified versions of this project
+must not cause confusion or imply Microsoft sponsorship. Any use of
+third-party trademarks or logos are subject to those third-party's policies.
