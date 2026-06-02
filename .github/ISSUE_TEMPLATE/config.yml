@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a bug or request a feature
+    url: https://github.com/microsoft/aspire/issues/new/choose
+    about: >-
+      Issues for the Aspire CLI and its Homebrew cask are tracked in
+      microsoft/aspire. Please file there so the right team sees it.
+  - name: Ask for help
+    url: https://github.com/microsoft/aspire/discussions
+    about: Use microsoft/aspire Discussions for questions and help.
+  - name: Report a security vulnerability
+    url: https://github.com/microsoft/homebrew-aspire/security/policy
+    about: Do not file security issues publicly. See SECURITY.md for the private reporting process.

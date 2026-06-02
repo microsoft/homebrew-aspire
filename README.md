@@ -40,15 +40,6 @@ The cask is generated from
 in the `microsoft/aspire` repo and is published here as part of the
 Aspire release pipeline.
 
-## Relationship to `Homebrew/homebrew-cask`
-
-The same cask is also being submitted to
-[`Homebrew/homebrew-cask`](https://github.com/Homebrew/homebrew-cask),
-which means `brew install --cask aspire` (no tap prefix) will work
-once that submission lands. This tap exists as the
-canonical Microsoft-owned distribution channel and as a fallback path
-that stays available even when upstream review is pending.
-
 ## Reporting issues
 
 File issues against the CLI or the cask in
