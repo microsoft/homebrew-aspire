@@ -20,5 +20,10 @@ cask "aspire" do
 
   binary "aspire"
 
+  # Lets the Aspire CLI identify the install source without path heuristics.
+  postflight do
+    File.write("#{staged_path}/.aspire-install.json", %Q({"source":"brew"}\n))
+  end
+
   zap trash: "~/.aspire"
 end
