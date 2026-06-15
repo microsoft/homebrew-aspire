@@ -1,11 +1,13 @@
+# frozen_string_literal: true
+
 cask "aspire" do
   arch arm: "arm64", intel: "x64"
 
-  version "13.4.3"
-  sha256 arm:   "fcc5516aa148933cee8b842e4d808947393c88d930e534ebb722661ebd50a98a",
-         intel: "ffd5d0b92e01440954fc2a4bc3a53fc67db6e83c64986fec8e07fd1f714ed31a"
+  version "13.4.4"
+  sha256 arm:   "cef5583ee9f88943a5a6dc1a1c6e7f6ca1886d53888fdc0f3ca7903b4c7edd8d",
+         intel: "318d7167406be8a0df8e6b9a26e356e3c937ae33a507cb36ef5548d3b21da752"
 
-  url "https://github.com/microsoft/aspire/releases/download/v#{version}/aspire-cli-osx-#{arch}-#{version}.tar.gz",
+  url "https://github.com/microsoft/aspire/releases/download/v#{version}-release/microsoft-aspire-cli-osx-#{arch}-#{version}.tgz",
       verified: "github.com/microsoft/aspire/"
   name "Aspire CLI"
   desc "CLI for building observable, production-ready distributed applications"
