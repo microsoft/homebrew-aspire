@@ -1,9 +1,11 @@
+# frozen_string_literal: true
+
 cask "aspire" do
   arch arm: "arm64", intel: "x64"
 
-  version "13.5.1"
-  sha256 arm:   "af08edeca8cd00723e08e172efd8725b11badad4a56b7b675e0c148789e0795e",
-         intel: "0cf6e86c74a7abec014bb25d9db4ee60c76f4bfe45250c0960f81d29380e96b3"
+  version "13.5.2"
+  sha256 arm:   "32ee8a224a52cd79b1174839b41939eaf2ce0090dcd62d37ab9f0b4897e5260e",
+         intel: "89f0a7453c2859d467233d01f12caf61e73fb9bbe14360837e7efacdeb06ed5a"
 
   url "https://github.com/microsoft/aspire/releases/download/v#{version}/aspire-cli-osx-#{arch}-#{version}.tar.gz",
       verified: "github.com/microsoft/aspire/"
