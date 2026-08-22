@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 cask "aspire" do
   arch arm: "arm64", intel: "x64"
 
