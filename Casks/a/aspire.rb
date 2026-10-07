@@ -3,9 +3,9 @@
 cask "aspire" do
   arch arm: "arm64", intel: "x64"
 
-  version "13.6.0"
-  sha256 arm:   "f2dae5ce572f24095cbaba8e9b94fb874aa59c130906defcc5a61dcb37738093",
-         intel: "9d7f08b935b8b156da87121dc1222225f04e4488a560f38ad450d5ae12e4e04b"
+  version "13.6.1"
+  sha256 arm:   "23f4946aae59ad55bd9c651ab617ec127b02bedc5fa1c1f38c850d7e6843340b",
+         intel: "9950ab666edf0d7dd92c4e162c2e2aaeb2117a4160fa7f97fb6414f82e3a648e"
 
   url "https://github.com/microsoft/aspire/releases/download/v#{version}/aspire-cli-osx-#{arch}-#{version}.tar.gz",
       verified: "github.com/microsoft/aspire/"
