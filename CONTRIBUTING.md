@@ -42,8 +42,9 @@ replacement:
   Ruby comments, whitespace and line breaks are ignored; string contents and DSL
   arguments (including install steps and zap targets) must match.
 - Runs `brew style` without auto-fixing and `brew audit --cask --online`.
-- Runs `brew test-bot --only-tap-syntax`, including `readall` across all OS and
-  architecture combinations, and fetches both macOS archives with checksum checks.
+- Runs tap-wide `brew style`, `brew readall --aliases --os=all --arch=all`,
+  and `brew audit --except=installed --tap=validation/aspire` directly,
+  and fetches both macOS archives with checksum checks.
 - Installs the released archive, checks the exact CLI version and the
   `{"source":"brew"}` sidecar beside the payload, verifies notarization, and
   exercises `aspire new` and `aspire restore` with a .NET 10 SDK.
@@ -58,11 +59,12 @@ It does not replace or uninstall any existing Aspire installation, and never
 uses `--zap`. Cleanup runs on failure too. Both architectures are installed in
 CI; a local run exercises the host architecture.
 
-CI checks out the full repository history so Homebrew's tap-syntax check does
-not try to unshallow a clone whose origin is the local checkout. The validation
-step uses the job's read-only GitHub token for online audit requests instead
-of the shared runner's unauthenticated API quota. The token is not written to
-Git configuration or files.
+CI checks out the full repository history for the isolated tap clone. Running
+the applicable syntax gates directly retains the runner's original tool path
+in `HOMEBREW_PATH`; `test-bot` would replace it with Homebrew's sanitized `PATH`.
+The validation step uses the job's read-only GitHub token for online audit
+requests instead of the shared runner's unauthenticated API quota. The token
+is not written to Git configuration or files.
 
 CI provisions ShellCheck with the runner's standard Homebrew before validation.
 Pinned Homebrew can reuse the matching executable without trying to build
@@ -70,8 +72,10 @@ ShellCheck's Haskell dependencies in the isolated prefix; the tap-wide style
 checks remain enabled.
 
 The isolated prefix clones or taps the official `homebrew/core` tap if needed,
-then trusts it to obtain Homebrew's style tools; its trust settings cannot
-modify the caller's Homebrew configuration. The validator copies the checked-out
+then trusts it to obtain Homebrew's style tools. It also trusts the isolated
+`validation/aspire` tap so `readall` checks its cask rather than skipping
+untrusted casks; neither trust setting modifies the caller's Homebrew
+configuration. The validator copies the checked-out
 scripts, workflow and contribution guide into the cloned tap so tap-wide style
 checks see local changes. It rejects any style command that changes that
 isolated copy.
@@ -110,7 +114,7 @@ Homebrew helper behavior was checked at
 
 | Check | Tap coverage / deliberate difference |
 | --- | --- |
-| Syntax and style | Homebrew tap-syntax checks and explicit non-mutating cask style; no `--fix` copy-back. |
+| Syntax and style | Tap-wide style, all-OS/architecture `readall`, tap audit, and explicit non-mutating cask style; no `--fix` copy-back. |
 | Live release audit | `--online`, as for an existing upstream cask; `--new` is for first submissions, not this published cask. |
 | Fetch and integrity | Both architecture archives fetched and SHA256-checked on every runner. |
 | Install and uninstall | Real released archive, with CLI version, sidecar and path cleanup assertions added. |

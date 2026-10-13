@@ -108,8 +108,8 @@ then
 fi
 
 tap_root="${prefix}/Library/Taps/validation/homebrew-aspire"
-# test-bot requires tap commit metadata; reuse this checkout's history without
-# creating a commit or updating the original repository.
+# Reuse this checkout's history without creating a commit or updating the
+# original repository.
 mkdir -p "$(dirname "${tap_root}")"
 git --no-pager clone --quiet --shared "${script_dir}/.." "${tap_root}"
 cp "${cask_file}" "${tap_root}/Casks/a/aspire.rb"
@@ -132,6 +132,7 @@ do
   cp "${tap_files[index]}" "${work}/tap-before/${index}"
 done
 "${brew_command}" trust --tap homebrew/core
+"${brew_command}" trust --tap validation/aspire
 
 failed=false
 run_check() {
@@ -151,10 +152,6 @@ run_check() {
     echo "Error: ${name} reported a deprecation." >&2
     failed=true
   fi
-}
-
-run_tap_syntax() {
-  (cd "${work}" && "${brew_command}" test-bot --tap validation/aspire --only-tap-syntax)
 }
 
 # Keep JSON separate from diagnostics so a successful load cannot hide a
@@ -183,8 +180,11 @@ curl --fail --silent --show-error --location --retry 3 \
 run_check "release-template consistency" "${brew_command}" ruby \
   "${script_dir}/check-cask-consistency.rb" -- "${tap_root}/Casks/a/aspire.rb" "${work}/cask.json" "${work}/release.template"
 run_check "Homebrew style (no auto-fix)" "${brew_command}" style --cask "${reference}"
-run_check "Homebrew tap syntax (all OS/architecture combinations)" \
-  run_tap_syntax
+run_check "Homebrew tap-wide style" "${brew_command}" style validation/aspire
+run_check "Homebrew all-platform syntax" env -u HOMEBREW_SORBET_RECURSIVE \
+  "${brew_command}" readall --aliases --os=all --arch=all validation/aspire
+run_check "Homebrew tap audit" env -u HOMEBREW_SORBET_RECURSIVE \
+  "${brew_command}" audit --except=installed --tap=validation/aspire
 for index in "${!tap_files[@]}"
 do
   if ! cmp -s "${tap_files[index]}" "${work}/tap-before/${index}"
