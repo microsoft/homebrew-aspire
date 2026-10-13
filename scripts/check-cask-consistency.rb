@@ -8,7 +8,7 @@ module CaskConsistency
     Ripper.lex(source).each_with_object([]) do |(_, type, text, _), tokens|
       tokens << [type, text] unless [
         :on_sp, :on_nl, :on_ignored_nl, :on_comment,
-        :on_embdoc_beg, :on_embdoc, :on_embdoc_end,
+        :on_embdoc_beg, :on_embdoc, :on_embdoc_end
       ].include?(type)
     end
   end
