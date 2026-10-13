@@ -21,112 +21,21 @@ and open the pull request in `microsoft/aspire`. Direct edits to
 
 ## Pull request validation
 
-The `Validate Homebrew tap` workflow runs **only on pull requests**, on macOS 15
-Arm64 and Intel runners with both Homebrew 7.0.9 (stable) and a pinned
-[Homebrew development commit](https://github.com/Homebrew/brew/tree/eb56e2b1f748e63d02be18a7660eec4e4cf32af1).
-It validates the actual checked-out `Casks/a/aspire.rb`, not a freshly generated
-replacement:
+The [validation workflow](.github/workflows/validate-tap.yml) checks the shipped
+cask on macOS Arm64 and Intel with stable and pinned-development Homebrew.
+It checks release-template consistency, syntax/style, archive checksums and
+online audit, then tests installation, notarization, scaffold/restore and cleanup.
 
-- Loads the cask and fails on reported Homebrew deprecations.
-- Compares it with the template from the matching `microsoft/aspire` release tag.
-  Version and both architecture checksums are substituted from Homebrew metadata.
-  Ruby comments, whitespace and line breaks are ignored; string contents and DSL
-  arguments (including install steps and zap targets) must match.
-- Runs `brew style` without auto-fixing and `brew audit --cask --online`.
-- Runs tap-wide `brew style`, `brew readall --aliases --os=all --arch=all`,
-  and `brew audit --except=installed --tap=validation/aspire` directly,
-  and fetches both macOS archives with checksum checks.
-- Installs the released archive, checks the exact CLI version and the
-  `{"source":"brew"}` sidecar beside the payload, verifies notarization, and
-  exercises `aspire new` and `aspire restore` with a .NET 10 SDK.
-- Reports signature integrity and recent macOS notarization-ticket diagnostics if
-  notarization fails, then preserves the original failure without retrying.
-- Uninstalls and checks that the payload, sidecar and binary link are removed,
-  then uses Homebrew's before/after snapshot check for leftover apps and services.
-
-Each run fetches its pinned Homebrew ref into a unique repository-local prefix
-with its own tap, cache and download directory. The validator uses installed
-Homebrew to locate an optional existing `homebrew-core` checkout. Validation invokes
-only the isolated prefix's Aspire binary and uses a separate home for CLI state.
-It does not replace or uninstall any existing Aspire installation, and never
-uses `--zap`. Cleanup runs on failure too. Both architectures are installed in
-CI; a local run exercises the host architecture.
-
-CI checks out the full repository history for the isolated tap clone. Running
-the applicable syntax gates directly retains the runner's original tool path
-in `HOMEBREW_PATH`; `test-bot` would replace it with Homebrew's sanitized `PATH`.
-The validation step uses the job's read-only GitHub token for online audit
-requests instead of the shared runner's unauthenticated API quota. The token
-is not written to Git configuration or files.
-
-CI provisions ShellCheck and actionlint with the runner's standard Homebrew
-before validation. Pinned Homebrew can reuse the matching executables without
-installing actionlint's ShellCheck dependency or building ShellCheck's Haskell
-dependencies in the isolated prefix; the tap-wide style checks remain enabled.
-
-The isolated prefix clones or taps the official `homebrew/core` tap if needed,
-then trusts it to obtain Homebrew's style tools. It also trusts the isolated
-`validation/aspire` tap so `readall` checks its cask rather than skipping
-untrusted casks; neither trust setting modifies the caller's Homebrew
-configuration. The validator copies the checked-out
-scripts, workflow and contribution guide into the cloned tap so tap-wide style
-checks see local changes. It rejects any style command that changes that
-isolated copy.
-Network access is required for the tagged template, Homebrew tooling and release
-archive. These checks neither repair the cask nor change the release pipeline.
-
-On macOS with Homebrew and a .NET 10 SDK installed:
+To run the [checks](scripts/validate-cask.sh) locally on macOS with Homebrew and
+a .NET 10 SDK:
 
 ```bash
 ruby scripts/test-cask-consistency.rb
 bash scripts/validate-cask.sh
 ```
 
-Use `--cask-file /absolute/path/to/aspire.rb` to validate a separate candidate.
-Use `--checks-only` to omit installation explicitly; this is not full validation
-and is not used in CI. Structural failures are reported before installation.
-Local validation defaults to Homebrew 7.0.9; set `HOMEBREW_VALIDATION_REF`
-to a semantic-version tag or 40-character commit SHA to use a different version
-in the isolated prefix. Homebrew's `cask-ci snapshot` needs passwordless `sudo`
-to inspect launchd services: local runs report an explicit warning and omit
-snapshot/check if unavailable, while CI fails instead of silently skipping it.
-Template drift must be reconciled with the upstream release template rather than
-hidden by automatic style fixes or weaker checks.
-
-### Coverage compared with upstream validation
-
-The tap combines the applicable checks from
-[`Homebrew/homebrew-cask` CI](https://github.com/Homebrew/homebrew-cask/blob/31cca0997fd2bcebfeb82b3314d228952a9efd4c/.github/workflows/ci.yml)
-and Aspire's
-[`validate-cask-artifact.sh`](https://github.com/microsoft/aspire/blob/266483abe1a335e371672fba0eba32dfa542fd02/eng/homebrew/validate-cask-artifact.sh),
-[`homebrew-validate-release.yml`](https://github.com/microsoft/aspire/blob/266483abe1a335e371672fba0eba32dfa542fd02/.github/workflows/homebrew-validate-release.yml)
-and
-[`prepare-installer-artifacts.yml`](https://github.com/microsoft/aspire/blob/266483abe1a335e371672fba0eba32dfa542fd02/.github/workflows/prepare-installer-artifacts.yml).
-Homebrew helper behavior was checked at
-[`Homebrew/brew` eb56e2b](https://github.com/Homebrew/brew/tree/eb56e2b1f748e63d02be18a7660eec4e4cf32af1/Library/Homebrew).
-
-| Check | Tap coverage / deliberate difference |
-| --- | --- |
-| Syntax and style | Tap-wide style, all-OS/architecture `readall`, tap audit, and explicit non-mutating cask style; no `--fix` copy-back. |
-| Live release audit | `--online`, as for an existing upstream cask; `--new` is for first submissions, not this published cask. |
-| Fetch and integrity | Both architecture archives fetched and SHA256-checked on every runner. |
-| Install and uninstall | Real released archive, with CLI version, sidecar and path cleanup assertions added. |
-| Signing | Explicit notarization check; Homebrew's signing audit is restricted to the official cask tap. |
-| Installed CLI smoke | Scaffold a starter and restore it, using published packages rather than build-artifact overrides. |
-| Apps/services left behind | Homebrew `cask-ci snapshot` / `check`, without machine-wide cleanup. |
-| Architecture coverage | Arm64 and Intel both execute locally on matching CI runners; downloading both is not execution coverage. |
-| Current tap vs release template | Additional drift and deprecation gates absent from generated-artifact validation. |
-
-Homebrew's conflict/dependency removal and `--force --zap` pre-cleanup are not
-copied: an isolated prefix starts empty and must not alter the developer's
-installations or shared state. Its advisory missing-zap scan is not a gate here:
-the release template intentionally retains shared Aspire user state. Aspire's
-prepublication archive rewriting and same-build NuGet overrides test unpublished
-builds, not this live-release tap, so the validator preserves the checked-out
-release URLs. No new-cask submission, publishing or production cleanup runs.
-Homebrew's stable-brew syntax job is a compatibility lane; this workflow exercises
-both stable and pinned development Homebrew on each architecture without modifying
-the runner's installed Homebrew.
+Validation uses a temporary Homebrew prefix and does not replace an existing
+Aspire installation.
 
 ## Contributor License Agreement
 
