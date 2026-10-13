@@ -259,7 +259,20 @@ echo "Installed CLI version: ${installed_version}"
 "${brew_command}" ruby -rjson -e \
   'abort "Error: missing brew install source" unless JSON.parse(File.read(ARGV.fetch(0))).fetch("source") == "brew"' \
   -- "${sidecar}"
-codesign --verify -R=notarized --check-notarization "${binary}"
+if codesign --verify -R=notarized --check-notarization --verbose=4 "${binary}"
+then
+  :
+else
+  signing_status=$?
+  echo "Error: notarization verification failed (exit ${signing_status})." >&2
+  codesign --display --verbose=4 "${binary}" >&2 ||
+    echo "Error: could not display the installed binary's signature." >&2
+  codesign --verify --strict --verbose=4 "${binary}" >&2 ||
+    echo "Error: installed binary signature integrity verification failed." >&2
+  spctl --assess --type execute --verbose=4 --ignore-cache --no-cache "${binary}" >&2 ||
+    echo "Error: system execution-policy assessment of the installed binary failed." >&2
+  exit "${signing_status}"
+fi
 mkdir -p "${work}/smoke"
 (
   cd "${work}/smoke"

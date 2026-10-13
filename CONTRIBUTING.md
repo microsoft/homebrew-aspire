@@ -39,6 +39,8 @@ replacement:
 - Installs the released archive, checks the exact CLI version and the
   `{"source":"brew"}` sidecar beside the payload, verifies notarization, and
   exercises `aspire new` and `aspire restore` with a .NET 10 SDK.
+- Reports signature integrity and system execution-policy diagnostics if
+  notarization fails, then preserves the original failure without retrying.
 - Uninstalls and checks that the payload, sidecar and binary link are removed,
   then uses Homebrew's before/after snapshot check for leftover apps and services.
 
