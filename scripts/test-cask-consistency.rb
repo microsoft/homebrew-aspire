@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "minitest/autorun"
 require_relative "check-cask-consistency"
 
@@ -30,15 +32,15 @@ class CaskConsistencyTest < Minitest::Test
     arm = "a" * 64
     intel = "b" * 64
     metadata = {
-      "version" => "13.6.1",
-      "url" => archive_url("arm64"),
-      "sha256" => arm,
+      "version"    => "13.6.1",
+      "url"        => archive_url("arm64"),
+      "sha256"     => arm,
       "variations" => {
-        "sequoia" => { "url" => archive_url("x64"), "sha256" => intel },
+        "sequoia"     => { "url" => archive_url("x64"), "sha256" => intel },
         "arm64_linux" => { "sha256" => nil },
       },
     }
-    template = '${VERSION} ${SHA256_OSX_ARM64} ${SHA256_OSX_X64}'
+    template = "${VERSION} ${SHA256_OSX_ARM64} ${SHA256_OSX_X64}"
     assert_equal "13.6.1 #{arm} #{intel}", CaskConsistency.render(template, metadata)
     metadata["url"] = archive_url("x64")
     metadata["sha256"] = intel
@@ -50,15 +52,15 @@ class CaskConsistencyTest < Minitest::Test
 
   def test_missing_architecture_is_an_error
     metadata = { "version" => "13.6.1", "url" => archive_url("arm64"), "sha256" => "a" * 64 }
-    assert_raises(ArgumentError) { CaskConsistency.render('${VERSION}', metadata) }
+    assert_raises(ArgumentError) { CaskConsistency.render("${VERSION}", metadata) }
   end
 
   def test_unknown_template_placeholder_is_an_error
     metadata = {
       "version" => "13.6.1", "url" => archive_url("arm64"), "sha256" => "a" * 64,
-      "variations" => { "sequoia" => { "url" => archive_url("x64"), "sha256" => "b" * 64 } },
+      "variations" => { "sequoia" => { "url" => archive_url("x64"), "sha256" => "b" * 64 } }
     }
-    assert_raises(ArgumentError) { CaskConsistency.render('${UNKNOWN}', metadata) }
+    assert_raises(ArgumentError) { CaskConsistency.render("${UNKNOWN}", metadata) }
   end
 
   private

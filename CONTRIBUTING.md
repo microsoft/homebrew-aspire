@@ -57,6 +57,12 @@ only the isolated prefix's Aspire binary and uses a separate home for CLI state.
 It does not replace or uninstall any existing Aspire installation, and never
 uses `--zap`. Cleanup runs on failure too. Both architectures are installed in
 CI; a local run exercises the host architecture.
+The isolated prefix clones or taps the official `homebrew/core` tap if needed,
+then trusts it to obtain Homebrew's style tools; its trust settings cannot
+modify the caller's Homebrew configuration. The validator copies the checked-out
+scripts, workflow and contribution guide into the cloned tap so tap-wide style
+checks see local changes. It rejects any style command that changes that
+isolated copy.
 Network access is required for the tagged template, Homebrew tooling and release
 archive. These checks neither repair the cask nor change the release pipeline.
 
