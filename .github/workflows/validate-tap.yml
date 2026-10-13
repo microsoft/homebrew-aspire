@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Test consistency comparison
         run: ruby scripts/test-cask-consistency.rb
       - name: Set up .NET SDK for installed CLI smoke test
@@ -29,4 +30,5 @@ jobs:
       - name: Validate checked-out cask
         env:
           HOMEBREW_VALIDATION_REF: ${{ matrix.homebrew_ref }}
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: bash scripts/validate-cask.sh
