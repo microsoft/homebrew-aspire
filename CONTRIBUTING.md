@@ -52,8 +52,8 @@ replacement:
   then uses Homebrew's before/after snapshot check for leftover apps and services.
 
 Each run fetches its pinned Homebrew ref into a unique repository-local prefix
-with its own tap, cache and download directory. The installed Homebrew is used
-only to locate an optional existing `homebrew-core` checkout. Validation invokes
+with its own tap, cache and download directory. The validator uses installed
+Homebrew to locate an optional existing `homebrew-core` checkout. Validation invokes
 only the isolated prefix's Aspire binary and uses a separate home for CLI state.
 It does not replace or uninstall any existing Aspire installation, and never
 uses `--zap`. Cleanup runs on failure too. Both architectures are installed in
@@ -66,10 +66,10 @@ The validation step uses the job's read-only GitHub token for online audit
 requests instead of the shared runner's unauthenticated API quota. The token
 is not written to Git configuration or files.
 
-CI provisions ShellCheck with the runner's standard Homebrew before validation.
-Pinned Homebrew can reuse the matching executable without trying to build
-ShellCheck's Haskell dependencies in the isolated prefix; the tap-wide style
-checks remain enabled.
+CI provisions ShellCheck and actionlint with the runner's standard Homebrew
+before validation. Pinned Homebrew can reuse the matching executables without
+installing actionlint's ShellCheck dependency or building ShellCheck's Haskell
+dependencies in the isolated prefix; the tap-wide style checks remain enabled.
 
 The isolated prefix clones or taps the official `homebrew/core` tap if needed,
 then trusts it to obtain Homebrew's style tools. It also trusts the isolated
