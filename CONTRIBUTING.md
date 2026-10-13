@@ -22,7 +22,7 @@ and open the pull request in `microsoft/aspire`. Direct edits to
 ## Pull request validation
 
 The [validation workflow](.github/workflows/validate-tap.yml) checks the shipped
-cask on macOS Arm64 and Intel with stable and pinned-development Homebrew.
+cask on macOS Arm64 and Intel with Homebrew 7.0.9.
 It checks release-template consistency, syntax/style, archive checksums and
 online audit, then tests installation, notarization, scaffold/restore and cleanup.
 
