@@ -1,0 +1,32 @@
+name: Validate Homebrew tap
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate cask (${{ matrix.runner }}, Homebrew ${{ matrix.homebrew_ref }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, macos-15-intel]
+        homebrew_ref: [7.0.9, eb56e2b1f748e63d02be18a7660eec4e4cf32af1]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Test consistency comparison
+        run: ruby scripts/test-cask-consistency.rb
+      - name: Set up .NET SDK for installed CLI smoke test
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Validate checked-out cask
+        env:
+          HOMEBREW_VALIDATION_REF: ${{ matrix.homebrew_ref }}
+        run: bash scripts/validate-cask.sh
