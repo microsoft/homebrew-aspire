@@ -160,7 +160,12 @@ run_tap_syntax() {
 # Keep JSON separate from diagnostics so a successful load cannot hide a
 # deprecation, and report drift even when another structural check fails.
 echo "Loading checked-out cask..."
-"${brew_command}" info --cask --json=v2 --variations "${reference}" >"${work}/cask.json" 2>"${work}/load.err"
+if ! "${brew_command}" info --cask --json=v2 --variations "${reference}" >"${work}/cask.json" 2>"${work}/load.err"
+then
+  cat "${work}/load.err" >&2
+  echo "Error: cask loading failed." >&2
+  exit 1
+fi
 cat "${work}/load.err"
 if grep -Ei 'deprecated|deprecation' "${work}/load.err"
 then
