@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# Exercise the comparator's Ruby parsing and release-metadata substitution.
+# These standard-library tests need neither Homebrew nor downloaded archives.
 require "minitest/autorun"
 require_relative "check-cask-consistency"
 
@@ -7,7 +9,7 @@ class CaskConsistencyTest < Minitest::Test
   def test_comments_and_layout_do_not_count_as_drift
     original = "cask \"aspire\" do\n  zap trash: []\nend\n"
     formatted = "# frozen_string_literal: true\ncask \"aspire\" do\n\n zap  trash: [] # shared state\nend\n"
-    assert_equal CaskConsistency.tokens(original), CaskConsistency.tokens(formatted)
+    assert CaskConsistency.matches?(original, formatted)
   end
 
   def test_install_and_uninstall_changes_count_as_drift
@@ -21,13 +23,38 @@ class CaskConsistencyTest < Minitest::Test
   def test_block_comments_do_not_count_as_drift
     original = "cask \"aspire\" do\n  zap trash: []\nend\n"
     documented = "=begin\nShared user state is retained.\n=end\n#{original}"
-    assert_equal CaskConsistency.tokens(original), CaskConsistency.tokens(documented)
+    assert CaskConsistency.matches?(original, documented)
   end
 
   def test_block_comment_markers_in_strings_remain_significant
     original = "desc \"=begin\nAspire CLI\n=end\"\n"
     changed = "desc \"=begin\nDifferent CLI\n=end\"\n"
     refute_equal CaskConsistency.tokens(original), CaskConsistency.tokens(changed)
+  end
+
+  def test_statement_terminating_newline_counts_as_drift
+    refute CaskConsistency.matches?("binary \"aspire\"\n", "binary\n\"aspire\"\n")
+  end
+
+  def test_continuations_and_trailing_comments_do_not_count_as_drift
+    original = "binary \"aspire\"\n"
+    continued = "binary \\\n  \"aspire\" # installed command\n\n"
+    assert CaskConsistency.matches?(original, continued)
+    assert CaskConsistency.matches?(original, 'binary "aspire"')
+  end
+
+  def test_literal_spelling_remains_significant
+    refute CaskConsistency.matches?('binary "aspire"', "binary 'aspire'")
+    refute CaskConsistency.matches?('desc "Aspire CLI"', 'desc "Aspire  CLI"')
+  end
+
+  def test_invalid_ruby_is_an_error
+    invalid = 'cask "aspire" do'
+    valid = 'binary "aspire"'
+    [[invalid, valid], [valid, invalid], [invalid, invalid]].each do |expected, actual|
+      error = assert_raises(ArgumentError) { CaskConsistency.matches?(expected, actual) }
+      assert_match "Invalid Ruby syntax", error.message
+    end
   end
 
   def test_deprecated_url_metadata_counts_as_drift

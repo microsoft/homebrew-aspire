@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Validate the checked-out cask against its release template and Homebrew gates,
+# then smoke-test the released CLI in an isolated prefix and clean it up.
+# --checks-only runs structural checks without installing the CLI.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

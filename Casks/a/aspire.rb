@@ -7,7 +7,8 @@ cask "aspire" do
   sha256 arm:   "23f4946aae59ad55bd9c651ab617ec127b02bedc5fa1c1f38c850d7e6843340b",
          intel: "9950ab666edf0d7dd92c4e162c2e2aaeb2117a4160fa7f97fb6414f82e3a648e"
 
-  url "https://github.com/microsoft/aspire/releases/download/v#{version}/aspire-cli-osx-#{arch}-#{version}.tar.gz"
+  url "https://github.com/microsoft/aspire/releases/download/v#{version}/aspire-cli-osx-#{arch}-#{version}.tar.gz",
+      verified: "github.com/microsoft/aspire/"
   name "Aspire CLI"
   desc "CLI for building observable, production-ready distributed applications"
   homepage "https://aspire.dev/"
@@ -23,8 +24,8 @@ cask "aspire" do
 
   # Lets the Aspire CLI identify the install source without path heuristics.
   postflight_steps do
-    write_file ".aspire-install.json", "{\"source\":\"brew\"}\n", base: :staged_path
+    write_file ".aspire-install.json", "{\"source\":\"brew\"}\n"
   end
 
-  zap trash: []
+  zap trash: "~/.aspire"
 end
