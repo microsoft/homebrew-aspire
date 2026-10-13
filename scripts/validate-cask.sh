@@ -269,8 +269,11 @@ else
     echo "Error: could not display the installed binary's signature." >&2
   codesign --verify --strict --verbose=4 "${binary}" >&2 ||
     echo "Error: installed binary signature integrity verification failed." >&2
-  spctl --assess --type execute --verbose=4 --ignore-cache --no-cache "${binary}" >&2 ||
-    echo "Error: system execution-policy assessment of the installed binary failed." >&2
+  xattr -l "${binary}" >&2 ||
+    echo "Error: could not read the installed binary's extended attributes." >&2
+  /usr/bin/log show --last 2m --style compact --info --debug \
+    --predicate '(process == "codesign" OR process == "syspolicyd") AND (eventMessage CONTAINS[c] "notar" OR eventMessage CONTAINS[c] "ticket")' >&2 ||
+    echo "Error: could not read recent notarization-ticket diagnostics." >&2
   exit "${signing_status}"
 fi
 mkdir -p "${work}/smoke"
