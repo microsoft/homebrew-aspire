@@ -18,6 +18,18 @@ class CaskConsistencyTest < Minitest::Test
                  CaskConsistency.tokens('zap trash: "~/.aspire"')
   end
 
+  def test_block_comments_do_not_count_as_drift
+    original = "cask \"aspire\" do\n  zap trash: []\nend\n"
+    documented = "=begin\nShared user state is retained.\n=end\n#{original}"
+    assert_equal CaskConsistency.tokens(original), CaskConsistency.tokens(documented)
+  end
+
+  def test_block_comment_markers_in_strings_remain_significant
+    original = "desc \"=begin\nAspire CLI\n=end\"\n"
+    changed = "desc \"=begin\nDifferent CLI\n=end\"\n"
+    refute_equal CaskConsistency.tokens(original), CaskConsistency.tokens(changed)
+  end
+
   def test_deprecated_url_metadata_counts_as_drift
     refute_equal CaskConsistency.tokens('url "https://example.com/archive"'),
                  CaskConsistency.tokens('url "https://example.com/archive", verified: "example.com/"')
