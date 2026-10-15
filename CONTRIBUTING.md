@@ -9,23 +9,33 @@ automatically by the Aspire release pipeline.
 
 ## Where to file issues and pull requests
 
-Almost everything you might want to change lives in
-[`microsoft/aspire`](https://github.com/microsoft/aspire), not here:
+Please file issues and submit contributions in
+[`microsoft/aspire`](https://github.com/microsoft/aspire), not directly in this tap.
 
-- **Bugs in the Aspire CLI itself** — file an issue in
-  [`microsoft/aspire`](https://github.com/microsoft/aspire/issues).
-- **Changes to how the cask is built** (URLs, SHA handling, install logic,
-  post-install steps) — edit
-  [`eng/homebrew/aspire.rb.template`](https://github.com/microsoft/aspire/blob/main/eng/homebrew/aspire.rb.template)
-  in `microsoft/aspire` and open a PR there. Edits to `Casks/a/aspire.rb` in this
-  repo will be overwritten by the next release.
-- **Changes to the release/publish pipeline** that pushes new cask versions into this
-  tap — also in `microsoft/aspire`.
+The Aspire build and release pipeline generates the cask and sends updates to
+this repository. For cask changes (URLs, checksums, install steps or zap targets),
+edit
+[`eng/homebrew/aspire.rb.template`](https://github.com/microsoft/aspire/blob/main/eng/homebrew/aspire.rb.template)
+and open the pull request in `microsoft/aspire`. Direct edits to
+`Casks/a/aspire.rb` here will be overwritten by a generated update.
 
-Pull requests directly against this repo are accepted for things that are genuinely
-local to the tap, such as fixes to `README.md`, `SECURITY.md`, `SUPPORT.md`, this file,
-or `.gitignore`. For anything else, please open the PR in `microsoft/aspire` instead so
-the change survives the next generated publish.
+## Pull request validation
+
+The [validation workflow](.github/workflows/validate-tap.yml) checks the shipped
+cask on macOS Arm64 and Intel with Homebrew 7.0.9.
+It checks release-template consistency, syntax/style, archive checksums and
+online audit, then tests installation, notarization, scaffold/restore and cleanup.
+
+To run the [checks](scripts/validate-cask.sh) locally on macOS with Homebrew and
+a .NET 10 SDK:
+
+```bash
+ruby scripts/test-cask-consistency.rb
+bash scripts/validate-cask.sh
+```
+
+Validation uses a temporary Homebrew prefix and does not replace an existing
+Aspire installation.
 
 ## Contributor License Agreement
 
