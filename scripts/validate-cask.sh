@@ -158,7 +158,7 @@ run_check() {
 }
 
 # Keep JSON separate from diagnostics so a successful load cannot hide a
-# deprecation, and report drift even when another structural check fails.
+# warning, and report drift even when another structural check fails.
 echo "Loading checked-out cask..."
 if ! "${brew_command}" info --cask --json=v2 --variations "${reference}" >"${work}/cask.json" 2>"${work}/load.err"
 then
@@ -167,9 +167,9 @@ then
   exit 1
 fi
 cat "${work}/load.err"
-if grep -Ei 'deprecated|deprecation' "${work}/load.err"
+if [[ -s "${work}/load.err" ]]
 then
-  echo "Error: cask loading reported a deprecation." >&2
+  echo "Error: cask loading reported diagnostics." >&2
   failed=true
 fi
 version="$("${brew_command}" ruby -rjson -e 'print JSON.parse(File.read(ARGV.fetch(0))).fetch("casks").fetch(0).fetch("version")' -- "${work}/cask.json")"
@@ -215,6 +215,11 @@ command -v dotnet >/dev/null || {
   exit 1
 }
 dotnet --version
+# Shared Aspire state belongs to every install channel. Capture a sentinel in
+# cask-ci's baseline so --zap must leave it unchanged without causing drift.
+zap_sentinel="${HOME}/.aspire/homebrew-zap-preservation"
+mkdir -p "$(dirname "${zap_sentinel}")"
+printf 'preserve\n' >"${zap_sentinel}"
 env CI=1 GITHUB_ENV="${work}/ci.env" GITHUB_OUTPUT="${work}/ci.out" \
   "${brew_command}" cask-ci info "${reference}"
 snapshot_available=true
@@ -286,14 +291,18 @@ mkdir -p "${work}/smoke"
     --non-interactive --nologo --suppress-agent-init
   "${link}" --log-level trace restore --non-interactive --nologo
 )
-"${brew_command}" uninstall --cask "${reference}"
+"${brew_command}" uninstall --zap --cask "${reference}"
 install_attempted=false
 [[ ! -e "${link}" && ! -L "${link}" && ! -e "${binary}" && ! -e "${sidecar}" && ! -d "${prefix}/Caskroom/aspire/${version}" ]] || {
   echo "Error: cask binary, sidecar or link survived uninstall." >&2
+  exit 1
+}
+[[ -f "${zap_sentinel}" && "$(cat "${zap_sentinel}")" == preserve ]] || {
+  echo "Error: brew uninstall --zap removed or changed shared Aspire state." >&2
   exit 1
 }
 if [[ "${snapshot_available}" == true ]]
 then
   CI=1 "${brew_command}" cask-ci check "${reference}"
 fi
-echo "Install, version, brew sidecar, notarization, new/restore and uninstall cleanup checks passed."
+echo "Install, version, brew sidecar, notarization, new/restore, zap preservation and uninstall cleanup checks passed."
