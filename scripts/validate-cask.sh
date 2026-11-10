@@ -7,6 +7,10 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cask_file="${script_dir}/../Casks/a/aspire.rb"
 checks_only=false
+diagnostics_dir=""
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=validation-support.sh
+source "${script_dir}/validation-support.sh"
 while [[ $# -gt 0 ]]
 do
   case "$1" in
@@ -22,8 +26,16 @@ do
       checks_only=true
       shift
       ;;
+    --diagnostics-dir)
+      [[ $# -ge 2 && -n "$2" ]] || {
+        echo "Error: --diagnostics-dir requires a path." >&2
+        exit 1
+      }
+      diagnostics_dir="$2"
+      shift 2
+      ;;
     *)
-      echo "Usage: bash $0 [--cask-file PATH] [--checks-only]" >&2
+      echo "Usage: bash $0 [--cask-file PATH] [--checks-only] [--diagnostics-dir PATH]" >&2
       exit 1
       ;;
   esac
@@ -54,32 +66,20 @@ prefix="${work}/homebrew"
 brew_command="${prefix}/bin/brew"
 reference="validation/aspire/aspire"
 install_attempted=false
+trap cleanup_validation EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+if [[ -n "${diagnostics_dir}" ]]
+then
+  requested_diagnostics_dir="${diagnostics_dir}"
+  diagnostics_dir=""
+  diagnostics_dir="$(ruby "${script_dir}/collect-validation-diagnostics.rb" \
+    --check-directory "${work}" "${requested_diagnostics_dir}")"
+fi
 export HOME="${work}/home" DOTNET_CLI_HOME="${work}/home"
 export XDG_CONFIG_HOME="${work}/home/.config"
 export NUGET_PACKAGES="${work}/nuget"
 mkdir -p "${HOME}"
-
-cleanup() {
-  local status=$?
-  trap - EXIT
-  if [[ "${install_attempted}" == true ]]
-  then
-    if ! "${brew_command}" uninstall --cask "${reference}"
-    then
-      echo "Error: cleanup uninstall failed in isolated prefix ${prefix}." >&2
-      status=1
-    fi
-  fi
-  if ! rm -rf -- "${work}"
-  then
-    echo "Error: could not remove validation directory ${work}." >&2
-    status=1
-  fi
-  exit "${status}"
-}
-trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
 
 # A separate brew executable determines a separate prefix; fetch the chosen
 # version only into that prefix, never into the caller's Homebrew installation.
@@ -118,6 +118,9 @@ git --no-pager clone --quiet --shared "${script_dir}/.." "${tap_root}"
 cp "${cask_file}" "${tap_root}/Casks/a/aspire.rb"
 cp "${script_dir}/check-cask-consistency.rb" \
   "${script_dir}/test-cask-consistency.rb" \
+  "${script_dir}/collect-validation-diagnostics.rb" \
+  "${script_dir}/validation-support.sh" \
+  "${script_dir}/test-validation-diagnostics.rb" \
   "${script_dir}/validate-cask.sh" "${tap_root}/scripts/"
 cp "${script_dir}/../.github/workflows/validate-tap.yml" "${tap_root}/.github/workflows/"
 cp "${script_dir}/../CONTRIBUTING.md" "${tap_root}/CONTRIBUTING.md"
@@ -125,6 +128,9 @@ tap_files=(
   "${tap_root}/Casks/a/aspire.rb"
   "${tap_root}/scripts/check-cask-consistency.rb"
   "${tap_root}/scripts/test-cask-consistency.rb"
+  "${tap_root}/scripts/collect-validation-diagnostics.rb"
+  "${tap_root}/scripts/validation-support.sh"
+  "${tap_root}/scripts/test-validation-diagnostics.rb"
   "${tap_root}/scripts/validate-cask.sh"
   "${tap_root}/.github/workflows/validate-tap.yml"
   "${tap_root}/CONTRIBUTING.md"
@@ -147,11 +153,13 @@ run_check() {
     :
   else
     echo "Error: ${name} failed." >&2
+    cat "${work}/check.out" "${work}/check.err" >>"${work}/failed-checks.log"
     failed=true
   fi
   cat "${work}/check.out" "${work}/check.err"
   if grep -Ei 'deprecated|deprecation' "${work}/check.err"
   then
+    cat "${work}/check.err" >>"${work}/failed-checks.log"
     echo "Error: ${name} reported a deprecation." >&2
     failed=true
   fi
@@ -287,9 +295,9 @@ fi
 mkdir -p "${work}/smoke"
 (
   cd "${work}/smoke"
-  "${link}" --log-level trace new aspire-starter --name SmokeApp --output . \
+  run_smoke_command "${link}" --log-level trace --log-file "${work}/cli-new.log" new aspire-starter --name SmokeApp --output . \
     --non-interactive --nologo --suppress-agent-init
-  "${link}" --log-level trace restore --non-interactive --nologo
+  run_smoke_command "${link}" --log-level trace --log-file "${work}/cli-restore.log" restore --non-interactive --nologo
 )
 "${brew_command}" uninstall --zap --cask "${reference}"
 install_attempted=false

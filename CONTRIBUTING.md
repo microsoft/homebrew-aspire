@@ -31,11 +31,31 @@ a .NET 10 SDK:
 
 ```bash
 ruby scripts/test-cask-consistency.rb
-bash scripts/validate-cask.sh
+ruby scripts/test-validation-diagnostics.rb
+bash scripts/validate-cask.sh --diagnostics-dir /tmp/aspire-validation-diagnostics
 ```
 
 Validation uses a temporary Homebrew prefix and does not replace an existing
 Aspire installation.
+
+The optional `--diagnostics-dir` must name a **new directory** whose parent exists,
+outside the temporary validation workspace. On failure, the validator collects
+diagnostics there before uninstalling and removing its workspace. The original
+failure status is preserved even if collection or cleanup fails. Successful runs
+do not create the diagnostics directory.
+
+Retention is restricted to smoke-command output, the two explicitly selected CLI
+trace logs, failed structural-check output, cask-loading stderr, and a summary of
+NuGet error entries and feed identities from the smoke project's
+`obj/project.assets.json` files. It does not copy HOME, caches, NuGet configuration,
+or whole assets files. Each text artifact is limited to 128 KiB; assets discovery
+is limited to 1,024 entries and 16 files of at most 2 MiB each. Collection has a
+5-second budget and an independent 10-second watchdog.
+Environment values named like secrets, common credential assignments, authorization
+headers, and URL userinfo/query/fragment components are redacted. Redaction is
+best-effort: inspect logs before sharing, and do not pass secrets as arbitrary
+unlabelled command output or URL path segments. CI uploads these failure artifacts
+separately for each architecture with seven-day retention.
 
 ## Contributor License Agreement
 
