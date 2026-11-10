@@ -81,7 +81,7 @@ module ValidationDiagnostics
 
       truncated = tail && file.size > limit
       file.seek(-limit, IO::SEEK_END) if truncated
-      text = file.read(limit) || ""
+      text = file.read(limit) || +""
       # Never retain a partial first line that may start midway through a secret.
       text = text.sub(/\A[^\n]*(?:\n|\z)/, "") if truncated
       text.force_encoding("UTF-8").scrub

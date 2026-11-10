@@ -67,6 +67,23 @@ class ValidationDiagnosticsTest < Minitest::Test
     assert_equal ["https://api.nuget.org/v3/index.json"], summary.fetch("sources")
   end
 
+  def test_empty_load_stderr_does_not_abort_failure_diagnostics
+    File.write(File.join(@work, "load.err"), "")
+    File.write(File.join(@work, "failed-checks.log"), "audit failed: env-canary\n")
+    write_assets("logs" => [{ "level" => "Error", "code" => "NU1105", "message" => FAILURE }])
+    _, stderr, status = run_lifecycle(env: { "TEST_SECRET" => "env-canary" })
+    assert_equal 42, status.exitstatus
+    refute File.exist?(@work)
+    assert_equal "uninstall --cask validation/aspire/aspire\n", File.read(File.join(@root, "uninstall"))
+    refute_includes stderr, "diagnostics collection failed"
+    refute_includes stderr, "could not be fully collected"
+    assert_empty File.read(File.join(@output, "load.err"))
+    assert_equal "audit failed: [REDACTED]\n", File.read(File.join(@output, "failed-checks.log"))
+    summary = JSON.parse(File.read(File.join(@output, "nuget-summary.json"))).fetch(0)
+    assert_equal "NU1105", summary.fetch("errors").fetch(0).fetch("code")
+    assert_equal FAILURE, summary.fetch("errors").fetch(0).fetch("message")
+  end
+
   def test_validator_entrypoint_retains_setup_failure_and_removes_workspace
     tools = File.join(@root, "tools")
     FileUtils.mkdir_p(tools)
