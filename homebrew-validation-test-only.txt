@@ -1,0 +1,5 @@
+TO BE IGNORED - TEST ONLY. Do not merge.
+
+Temporary marker for the existing pull-request validation workflow.
+The cask is unchanged and matches official build 3115399, artifact 77459436.
+Close the draft PR after collecting its validation results.
