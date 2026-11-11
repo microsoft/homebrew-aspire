@@ -25,6 +25,7 @@ module ValidationDiagnostics
 
   def self.redact(text)
     text = text.encode("UTF-8", invalid: :replace, undef: :replace)
+    text = text.gsub(%r{\e\[[0-?]*[ -/]*[@-~]}, "")
     ENV.sort_by { |_, value| -value.length }.each do |key, value|
       next unless key.match?(/token|secret|password|credential|key|connection_?string/i)
       next if value.empty?
@@ -41,18 +42,18 @@ module ValidationDiagnostics
     rescue URI::InvalidURIError
       "[REDACTED URL]"
     end
-    text = text.gsub(/((?:authorization|proxy-authorization)\s*[:=]\s*)[^\r\n]+/i, '\1[REDACTED]')
+    text = text.gsub(/(["']?(?:authorization|proxy-authorization)["']?[ \t]*[:=][ \t]*)[^\r\n]+/i,
+                     '\1[REDACTED]')
     text = text.gsub(
       /(["']?(?:[\w.-]*(?:password|passwd|token|secret|credential|key|connection[_-]?string)|sig)
-        ["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/ix,
+        ["']?[ \t]*[:=][ \t]*)(?:"[^"\r\n]*"|'[^'\r\n]*'|[^,;\r\n]+)/ix,
       '\1[REDACTED]',
     )
-    text = text.gsub(
+    text.gsub(
       /\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+|
         eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b/x,
       "[REDACTED]",
     )
-    text.gsub(%r{\e\[[0-?]*[ -/]*[@-~]}, "")
   end
 
   def self.write(destination, name, text)

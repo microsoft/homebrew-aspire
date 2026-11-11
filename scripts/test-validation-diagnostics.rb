@@ -95,6 +95,62 @@ class ValidationDiagnosticsTest < Minitest::Test
     old_secret ? ENV["DIAGNOSTIC_TEST_SECRET"] = old_secret : ENV.delete("DIAGNOSTIC_TEST_SECRET")
   end
 
+  def assert_retained_redactions(cases)
+    %w[cli-new.log cli-restore.log].each do |name|
+      File.write(File.join(@work, name), cases.map(&:first).join)
+    end
+    write_assets("logs" => cases.map do |input, _|
+      { "level" => "Error", "code" => "NU1105", "message" => input }
+    end)
+    ValidationDiagnostics.collect(@work, @output)
+
+    %w[cli-new.log cli-restore.log].each do |name|
+      retained = File.read(File.join(@output, name))
+      assert_equal cases.map(&:last).join, retained
+      refute_match(/canary/, retained)
+    end
+    summary = JSON.parse(File.read(File.join(@output, "nuget-summary.json")))
+    messages = summary.fetch(0).fetch("errors").map { |error| error.fetch("message") }
+    assert_equal cases.map(&:last), messages
+    refute_match(/canary/, messages.join)
+  end
+
+  def test_removes_ansi_sequences_before_redacting_retained_credentials
+    assert_retained_redactions([
+      ["\e[36mPassword:\e[0m ansi-canary\n", "Password: [REDACTED]\n"],
+      ["\e[32mProxy-Authorization:\e[0m Bearer ansi-proxy-canary\n", "Proxy-Authorization: [REDACTED]\n"],
+    ])
+  end
+
+  def test_redacts_quoted_and_plain_authorization_without_crossing_lines
+    assert_retained_redactions([
+      ["{\"Authorization\":\"Bearer opaque-canary\"}\n", "{\"Authorization\":[REDACTED]\n"],
+      ["{\"Proxy-Authorization\":\"Basic proxy-canary\"}\n", "{\"Proxy-Authorization\":[REDACTED]\n"],
+      ["'Authorization': 'Bearer single-canary'\n", "'Authorization': [REDACTED]\n"],
+      ["'Proxy-Authorization' = 'Basic single-proxy-canary'\n", "'Proxy-Authorization' = [REDACTED]\n"],
+      ["aUtHoRiZaTiOn: Bearer plain-canary\n", "aUtHoRiZaTiOn: [REDACTED]\n"],
+      ["pRoXy-AuThOrIzAtIoN=Basic plain-proxy-canary\r\n", "pRoXy-AuThOrIzAtIoN=[REDACTED]\r\n"],
+      ["\"Authorization\":\r\nnext-line-marker\n", "\"Authorization\":\r\nnext-line-marker\n"],
+      ["Proxy-Authorization:\nnext-line-marker\n", "Proxy-Authorization:\nnext-line-marker\n"],
+      ["Authorization\r\n=next-line-marker\n", "Authorization\r\n=next-line-marker\n"],
+    ])
+  end
+
+  def test_redacts_space_containing_credentials_to_delimiters_or_line_end
+    assert_retained_redactions([
+      ["Password=first-canary second-canary;\n", "Password=[REDACTED];\n"],
+      ["Password=ambiguous-canary followed by diagnostic prose\n", "Password=[REDACTED]\n"],
+      ["Password=\"quoted-canary with spaces\";Host=example\n", "Password=[REDACTED];Host=example\n"],
+      ["Password='single-canary with spaces',Host=example\r\n", "Password=[REDACTED],Host=example\r\n"],
+      ["Password=\nnext-line-marker\n", "Password=\nnext-line-marker\n"],
+      ["Password:\r\nnext-line-marker\r\n", "Password:\r\nnext-line-marker\r\n"],
+      ["Password\r\n=next-line-marker\n", "Password\r\n=next-line-marker\n"],
+      ["Password=cr-canary words\rnext-line-marker\r", "Password=[REDACTED]\rnext-line-marker\r"],
+      ["Password=lf-canary words\nnext-line-marker\n", "Password=[REDACTED]\nnext-line-marker\n"],
+      ["Password=comma-canary words,Host=example;\n", "Password=[REDACTED],Host=example;\n"],
+    ])
+  end
+
   def test_reports_malformed_assets_without_retaining_contents
     write_assets({})
     path = File.join(@work, "smoke", "SmokeApp.AppHost", "obj", "project.assets.json")
