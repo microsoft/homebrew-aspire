@@ -7,6 +7,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cask_file="${script_dir}/../Casks/a/aspire.rb"
 checks_only=false
+diagnostics_dir=""
 while [[ $# -gt 0 ]]
 do
   case "$1" in
@@ -22,8 +23,16 @@ do
       checks_only=true
       shift
       ;;
+    --diagnostics-dir)
+      [[ $# -ge 2 && -n "$2" ]] || {
+        echo "Error: --diagnostics-dir requires a path." >&2
+        exit 1
+      }
+      diagnostics_dir="$2"
+      shift 2
+      ;;
     *)
-      echo "Usage: bash $0 [--cask-file PATH] [--checks-only]" >&2
+      echo "Usage: bash $0 [--cask-file PATH] [--checks-only] [--diagnostics-dir PATH]" >&2
       exit 1
       ;;
   esac
@@ -50,36 +59,82 @@ validation_ref="${HOMEBREW_VALIDATION_REF:-7.0.9}"
 source_repository="$(brew --repository)"
 work="${script_dir}/../.aspire-tap-validation.$$.${RANDOM}"
 mkdir "${work}"
+work="$(cd "${work}" && pwd -P)"
 prefix="${work}/homebrew"
 brew_command="${prefix}/bin/brew"
 reference="validation/aspire/aspire"
 install_attempted=false
-export HOME="${work}/home" DOTNET_CLI_HOME="${work}/home"
-export XDG_CONFIG_HOME="${work}/home/.config"
-export NUGET_PACKAGES="${work}/nuget"
-mkdir -p "${HOME}"
-
+copy_failure_assets() {
+  local assets relative
+  # For example, smoke/SmokeApp.Api Service/obj/project.assets.json keeps its
+  # project layout. NUL delimiters preserve spaces and other filename characters.
+  find "${work}/smoke" -type f -path '*/obj/project.assets.json' -print0 >"${work}/assets-files" || return
+  while IFS= read -r -d '' assets
+  do
+    relative="${assets#"${work}/"}"
+    mkdir -p "${diagnostics_dir}/$(dirname "${relative}")" || return
+    cp "${assets}" "${diagnostics_dir}/${relative}" || return
+  done <"${work}/assets-files"
+}
 cleanup() {
   local status=$?
   trap - EXIT
+  # Let cleanup finish after a handled interrupt, preserving the original status.
+  trap '' INT TERM
+  if [[ "${status}" -ne 0 && -n "${diagnostics_dir}" && -d "${work}/smoke" ]]
+  then
+    # Each copy step returns explicitly so collection cannot mask the original failure.
+    # shellcheck disable=SC2310
+    copy_failure_assets ||
+      echo "Warning: failure assets could not be fully copied to ${diagnostics_dir}." >&2
+  fi
   if [[ "${install_attempted}" == true ]]
   then
     if ! "${brew_command}" uninstall --cask "${reference}"
     then
       echo "Error: cleanup uninstall failed in isolated prefix ${prefix}." >&2
-      status=1
+      if [[ "${status}" -eq 0 ]]; then status=1; fi
     fi
   fi
   if ! rm -rf -- "${work}"
   then
     echo "Error: could not remove validation directory ${work}." >&2
-    status=1
+    if [[ "${status}" -eq 0 ]]; then status=1; fi
   fi
   exit "${status}"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+if [[ -n "${diagnostics_dir}" ]]
+then
+  requested_diagnostics_dir="${diagnostics_dir}"
+  diagnostics_dir=""
+  diagnostics_parent="$(cd "$(dirname "${requested_diagnostics_dir}")" && pwd -P)" || {
+    echo "Error: --diagnostics-dir requires an existing parent directory." >&2
+    exit 1
+  }
+  requested_diagnostics_dir="${diagnostics_parent}/$(basename "${requested_diagnostics_dir}")"
+  case "${requested_diagnostics_dir}/" in
+    "${work}/"*)
+      echo "Error: --diagnostics-dir must be outside the validation workspace." >&2
+      exit 1
+      ;;
+    *)
+      :
+      ;;
+  esac
+  [[ ! -e "${requested_diagnostics_dir}" && ! -L "${requested_diagnostics_dir}" ]] || {
+    echo "Error: --diagnostics-dir must name a new directory." >&2
+    exit 1
+  }
+  mkdir -m 700 "${requested_diagnostics_dir}"
+  diagnostics_dir="${requested_diagnostics_dir}"
+fi
+export HOME="${work}/home" DOTNET_CLI_HOME="${work}/home"
+export XDG_CONFIG_HOME="${work}/home/.config"
+export NUGET_PACKAGES="${work}/nuget"
+mkdir -p "${HOME}"
 
 # A separate brew executable determines a separate prefix; fetch the chosen
 # version only into that prefix, never into the caller's Homebrew installation.
@@ -118,6 +173,7 @@ git --no-pager clone --quiet --shared "${script_dir}/.." "${tap_root}"
 cp "${cask_file}" "${tap_root}/Casks/a/aspire.rb"
 cp "${script_dir}/check-cask-consistency.rb" \
   "${script_dir}/test-cask-consistency.rb" \
+  "${script_dir}/test-validation-diagnostics.rb" \
   "${script_dir}/validate-cask.sh" "${tap_root}/scripts/"
 cp "${script_dir}/../.github/workflows/validate-tap.yml" "${tap_root}/.github/workflows/"
 cp "${script_dir}/../CONTRIBUTING.md" "${tap_root}/CONTRIBUTING.md"
@@ -125,6 +181,7 @@ tap_files=(
   "${tap_root}/Casks/a/aspire.rb"
   "${tap_root}/scripts/check-cask-consistency.rb"
   "${tap_root}/scripts/test-cask-consistency.rb"
+  "${tap_root}/scripts/test-validation-diagnostics.rb"
   "${tap_root}/scripts/validate-cask.sh"
   "${tap_root}/.github/workflows/validate-tap.yml"
   "${tap_root}/CONTRIBUTING.md"
@@ -284,12 +341,14 @@ else
     echo "Error: could not read recent notarization-ticket diagnostics." >&2
   exit "${signing_status}"
 fi
+# Without a retention directory, logs are removed with the workspace.
+log_dir="${diagnostics_dir:-${work}}"
 mkdir -p "${work}/smoke"
 (
   cd "${work}/smoke"
-  "${link}" --log-level trace new aspire-starter --name SmokeApp --output . \
+  "${link}" --log-level trace --log-file "${log_dir}/cli-new.log" new aspire-starter --name SmokeApp --output . \
     --non-interactive --nologo --suppress-agent-init
-  "${link}" --log-level trace restore --non-interactive --nologo
+  "${link}" --log-level trace --log-file "${log_dir}/cli-restore.log" restore --non-interactive --nologo
 )
 "${brew_command}" uninstall --zap --cask "${reference}"
 install_attempted=false
