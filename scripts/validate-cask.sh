@@ -8,9 +8,6 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cask_file="${script_dir}/../Casks/a/aspire.rb"
 checks_only=false
 diagnostics_dir=""
-# shellcheck source-path=SCRIPTDIR
-# shellcheck source=validation-support.sh
-source "${script_dir}/validation-support.sh"
 while [[ $# -gt 0 ]]
 do
   case "$1" in
@@ -66,7 +63,30 @@ prefix="${work}/homebrew"
 brew_command="${prefix}/bin/brew"
 reference="validation/aspire/aspire"
 install_attempted=false
-trap cleanup_validation EXIT
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if [[ "${status}" -ne 0 && -n "${diagnostics_dir}" ]]
+  then
+    ruby "${script_dir}/collect-validation-diagnostics.rb" "${work}" "${diagnostics_dir}" ||
+      echo "Warning: failure diagnostics could not be fully collected." >&2
+  fi
+  if [[ "${install_attempted}" == true ]]
+  then
+    if ! "${brew_command}" uninstall --cask "${reference}"
+    then
+      echo "Error: cleanup uninstall failed in isolated prefix ${prefix}." >&2
+      if [[ "${status}" -eq 0 ]]; then status=1; fi
+    fi
+  fi
+  if ! rm -rf -- "${work}"
+  then
+    echo "Error: could not remove validation directory ${work}." >&2
+    if [[ "${status}" -eq 0 ]]; then status=1; fi
+  fi
+  exit "${status}"
+}
+trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 if [[ -n "${diagnostics_dir}" ]]
@@ -119,7 +139,6 @@ cp "${cask_file}" "${tap_root}/Casks/a/aspire.rb"
 cp "${script_dir}/check-cask-consistency.rb" \
   "${script_dir}/test-cask-consistency.rb" \
   "${script_dir}/collect-validation-diagnostics.rb" \
-  "${script_dir}/validation-support.sh" \
   "${script_dir}/test-validation-diagnostics.rb" \
   "${script_dir}/validate-cask.sh" "${tap_root}/scripts/"
 cp "${script_dir}/../.github/workflows/validate-tap.yml" "${tap_root}/.github/workflows/"
@@ -129,7 +148,6 @@ tap_files=(
   "${tap_root}/scripts/check-cask-consistency.rb"
   "${tap_root}/scripts/test-cask-consistency.rb"
   "${tap_root}/scripts/collect-validation-diagnostics.rb"
-  "${tap_root}/scripts/validation-support.sh"
   "${tap_root}/scripts/test-validation-diagnostics.rb"
   "${tap_root}/scripts/validate-cask.sh"
   "${tap_root}/.github/workflows/validate-tap.yml"
@@ -153,13 +171,11 @@ run_check() {
     :
   else
     echo "Error: ${name} failed." >&2
-    cat "${work}/check.out" "${work}/check.err" >>"${work}/failed-checks.log"
     failed=true
   fi
   cat "${work}/check.out" "${work}/check.err"
   if grep -Ei 'deprecated|deprecation' "${work}/check.err"
   then
-    cat "${work}/check.err" >>"${work}/failed-checks.log"
     echo "Error: ${name} reported a deprecation." >&2
     failed=true
   fi
@@ -295,9 +311,9 @@ fi
 mkdir -p "${work}/smoke"
 (
   cd "${work}/smoke"
-  run_smoke_command "${link}" --log-level trace --log-file "${work}/cli-new.log" new aspire-starter --name SmokeApp --output . \
+  "${link}" --log-level trace --log-file "${work}/cli-new.log" new aspire-starter --name SmokeApp --output . \
     --non-interactive --nologo --suppress-agent-init
-  run_smoke_command "${link}" --log-level trace --log-file "${work}/cli-restore.log" restore --non-interactive --nologo
+  "${link}" --log-level trace --log-file "${work}/cli-restore.log" restore --non-interactive --nologo
 )
 "${brew_command}" uninstall --zap --cask "${reference}"
 install_attempted=false

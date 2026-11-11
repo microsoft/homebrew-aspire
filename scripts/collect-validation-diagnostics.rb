@@ -122,7 +122,7 @@ module ValidationDiagnostics
     Timeout.timeout(5) do
       output = destination(work, output)
       Dir.mkdir(output, 0700)
-      %w[smoke-command.log cli-new.log cli-restore.log failed-checks.log load.err].each do |name|
+      %w[cli-new.log cli-restore.log].each do |name|
         path = File.join(work, name)
         next unless File.exist?(path)
 
@@ -140,10 +140,8 @@ module ValidationDiagnostics
           errors = errors.first(10).map do |entry|
             { "code" => redact(entry["code"].to_s)[0, 128], "message" => redact(entry["message"].to_s)[0, 512] }
           end
-          sources = data.dig("project", "restore", "sources").to_h.keys.first(10)
           { "file"    => redact(Pathname.new(path).relative_path_from(Pathname.new(work)).to_s),
-            "errors"  => errors,
-            "sources" => sources.map { |source| redact(feed_identity(source))[0, 256] } }
+            "errors"  => errors }
         end
       rescue JSON::ParserError, TypeError, NoMethodError
         { "diagnostic" => "Could not parse an assets summary" }
@@ -153,19 +151,6 @@ module ValidationDiagnostics
     end
   end
 
-  def self.feed_identity(source)
-    uri = URI.parse(source)
-    return "[local or unrecognized feed]" unless %w[http https].include?(uri.scheme)
-    return "[local or unrecognized feed]" unless uri.host
-
-    uri.user = nil
-    uri.password = nil
-    uri.query = nil
-    uri.fragment = nil
-    uri.to_s
-  rescue URI::InvalidURIError
-    "[unrecognized feed]"
-  end
 end
 
 if $PROGRAM_NAME == __FILE__

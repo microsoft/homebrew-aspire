@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
       - name: Test consistency comparison
         run: ruby scripts/test-cask-consistency.rb
-      - name: Test failure diagnostics
+      - name: Test validation diagnostic retention
         run: ruby scripts/test-validation-diagnostics.rb
       - name: Set up .NET SDK for installed CLI smoke test
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
