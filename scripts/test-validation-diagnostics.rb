@@ -29,7 +29,7 @@ class ValidationDiagnosticsTest < Minitest::Test
 
   def test_collects_redacted_trace_and_restore_errors_without_other_data
     File.write(File.join(@work, "cli-restore.log"), "error MSB4181\nAuthorization: Bearer bearer-canary\n")
-    write_assets("logs" => [
+    write_assets("logs"      => [
                    { "level" => "Error", "code" => "NU1105", "message" => FAILURE, "extra" => "extra-canary" },
                    { "level" => "Warning", "message" => "warning-canary" },
                  ],
@@ -49,8 +49,8 @@ class ValidationDiagnosticsTest < Minitest::Test
     tools = File.join(@root, "tools")
     FileUtils.mkdir_p(tools)
     { "uname" => "echo Darwin",
-      "brew" => "echo '#{@root}/source'",
-      "git" => <<~BASH }.each do |name, body|
+      "brew"  => "echo '#{@root}/source'",
+      "git"   => <<~BASH }.each do |name, body|
         work="$(dirname "${@: -1}")"
         mkdir -p "$work/smoke/SmokeApp.AppHost/obj"
         printf 'trace before cleanup\\n' >"$work/cli-restore.log"
@@ -76,14 +76,16 @@ class ValidationDiagnosticsTest < Minitest::Test
   def test_rejects_destinations_inside_workspace_or_that_already_exist
     assert_raises(ArgumentError) { ValidationDiagnostics.destination(@work, File.join(@work, "diagnostics")) }
     File.symlink(@work, File.join(@root, "alias"))
-    assert_raises(ArgumentError) { ValidationDiagnostics.destination(@work, File.join(@root, "alias", "diagnostics")) }
+    assert_raises(ArgumentError) do
+      ValidationDiagnostics.destination(@work, File.join(@root, "alias", "diagnostics"))
+    end
     File.write(@output, "existing file")
     assert_raises(ArgumentError) { ValidationDiagnostics.collect(@work, @output) }
     assert_equal "existing file", File.read(@output)
   end
 
   def test_redacts_sensitive_environment_values_and_url_credentials
-    old_secret = ENV["DIAGNOSTIC_TEST_SECRET"]
+    old_secret = ENV.fetch("DIAGNOSTIC_TEST_SECRET", nil)
     ENV["DIAGNOSTIC_TEST_SECRET"] = "env-canary"
     File.write(File.join(@work, "cli-new.log"),
                "env-canary https://user-canary:pass-canary@example.com/feed?token=query-canary\n")

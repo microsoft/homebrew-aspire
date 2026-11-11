@@ -140,8 +140,8 @@ module ValidationDiagnostics
           errors = errors.first(10).map do |entry|
             { "code" => redact(entry["code"].to_s)[0, 128], "message" => redact(entry["message"].to_s)[0, 512] }
           end
-          { "file"    => redact(Pathname.new(path).relative_path_from(Pathname.new(work)).to_s),
-            "errors"  => errors }
+          { "file"   => redact(Pathname.new(path).relative_path_from(Pathname.new(work)).to_s),
+            "errors" => errors }
         end
       rescue JSON::ParserError, TypeError, NoMethodError
         { "diagnostic" => "Could not parse an assets summary" }
@@ -150,7 +150,6 @@ module ValidationDiagnostics
       warn "Retained failure diagnostics in #{output}"
     end
   end
-
 end
 
 if $PROGRAM_NAME == __FILE__
