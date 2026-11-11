@@ -32,29 +32,38 @@ a .NET 10 SDK:
 ```bash
 ruby scripts/test-cask-consistency.rb
 ruby scripts/test-validation-diagnostics.rb
-bash scripts/validate-cask.sh --diagnostics-dir /tmp/aspire-validation-diagnostics
+diagnostics_parent="$(mktemp -d)"
+bash scripts/validate-cask.sh --diagnostics-dir "$diagnostics_parent/aspire-validation-diagnostics"
 ```
 
 Validation uses a temporary Homebrew prefix and does not replace an existing
 Aspire installation.
 
 The optional `--diagnostics-dir` must name a **new directory** whose parent exists,
-outside the temporary validation workspace. On failure, the validator collects
-diagnostics there before uninstalling and removing its workspace. The original
-failure status is preserved even if collection or cleanup fails. Successful runs
-do not create the diagnostics directory.
+outside the temporary validation workspace. The validator creates it with
+owner-only access (0700), independent of the caller's umask, and rejects existing
+paths without changing their permissions. The CLI writes raw trace logs
+(`cli-new.log` and `cli-restore.log`) **directly** to that directory. Each log
+exists only if its corresponding CLI command ran; an earlier failure may leave
+one or neither log. Logs already written to the diagnostics directory remain
+available even if the exit handler cannot run. On failure, the exit handler
+attempts to copy each smoke project's `obj/project.assets.json`, unchanged,
+preserving project-relative paths under `smoke/`. Copying can fail and leave
+partial diagnostics. No assets are copied on success.
 
-Retention is restricted to the two CLI trace logs and a summary of
-NuGet error entries from the smoke project's
-`obj/project.assets.json` files. It does not copy HOME, caches, NuGet configuration,
-or whole assets files. Each text artifact is limited to 128 KiB; assets discovery
-is limited to 1,024 entries and 16 files of at most 2 MiB each. Collection has a
-5-second budget.
-Environment values named like secrets, common credential assignments, authorization
-headers, and URL userinfo/query/fragment components are redacted. Redaction is
-best-effort: inspect logs before sharing, and do not pass secrets as arbitrary
-unlabelled command output or URL path segments. CI uploads these failure artifacts
-separately for each architecture with seven-day retention.
+These diagnostics are **unredacted** and may contain sensitive data. The public
+tap validation workflow does **not** upload diagnostics artifacts. Internal
+consumers, including Aspire pipelines, control whether to retain or upload the
+raw diagnostics and must restrict access appropriately. Inspect diagnostics
+before sharing and delete them when no longer needed.
+
+Without `--diagnostics-dir`, logs are written inside the disposable workspace
+and no diagnostics are retained. When the exit handler runs, it attempts to
+uninstall the isolated CLI and remove the workspace on success, failure and
+handled interrupts. Forced termination such as SIGKILL prevents the handler
+from running, so neither failure-asset copying nor cleanup can occur through
+that handler. The handler preserves the original validation failure status
+even if copying assets or cleanup fails; a copy failure reports a warning.
 
 ## Contributor License Agreement
 
