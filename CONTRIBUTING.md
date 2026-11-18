@@ -37,6 +37,13 @@ bash scripts/validate-cask.sh
 Validation uses a temporary Homebrew prefix and does not replace an existing
 Aspire installation.
 
+The consistency comparator ignores comments and layout. It also ignores
+redundant single or double quotes around heredoc delimiters when their bodies
+contain no backslashes or Ruby interpolation. It does not execute cask source.
+Ruby structure, other literal spellings, and DSL arguments remain significant.
+The Ruby test command above also exercises the comparator's command-line entry
+point and requires neither Homebrew nor macOS.
+
 ## Contributor License Agreement
 
 This project welcomes contributions and suggestions. Most contributions require you to

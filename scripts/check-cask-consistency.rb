@@ -6,6 +6,42 @@ require "json"
 require "ripper"
 
 module CaskConsistency
+  # Scanner callbacks visit each heredoc body before resuming its opening line,
+  # unlike Ripper.lex's source order. A stack also handles nested heredocs.
+  class PlainHeredocs < Ripper
+    attr_reader :positions
+
+    def initialize(source)
+      super
+      @heredocs = []
+      @positions = {}
+    end
+
+    def on_heredoc_beg(_text)
+      @heredocs << { position: [lineno, column], plain: true }
+    end
+
+    def on_tstring_content(text)
+      mark_sensitive if text.include?("\\")
+    end
+
+    def on_embexpr_beg(_text)
+      mark_sensitive
+    end
+    alias on_embvar on_embexpr_beg
+
+    def on_heredoc_end(_text)
+      heredoc = @heredocs.pop
+      @positions[heredoc.fetch(:position)] = true if heredoc.fetch(:plain)
+    end
+
+    private
+
+    def mark_sensitive
+      @heredocs.each { |heredoc| heredoc[:plain] = false }
+    end
+  end
+
   # Ripper parses Ruby into nested arrays; reject invalid input before comparing.
   def self.syntax_tree(source)
     tree = Ripper.sexp(source)
@@ -23,9 +59,14 @@ module CaskConsistency
   end
 
   # Keep literal spelling and DSL arguments that syntax-tree comparison alone
-  # can normalize, while discarding comments and layout tokens.
+  # can normalize, except redundant quotes on escape/interpolation-free heredocs.
   def self.tokens(source)
-    Ripper.lex(source).each_with_object([]) do |(_, type, text, _), tokens|
+    heredocs = PlainHeredocs.new(source)
+    heredocs.parse
+    Ripper.lex(source).each_with_object([]) do |(position, type, text, _), tokens|
+      if type == :on_heredoc_beg && heredocs.positions[position]
+        text = text.sub(/\A(<<[-~]?)(['"])(\w+)\2\z/, '\1\3')
+      end
       tokens << [type, text] unless [
         :on_sp, :on_nl, :on_ignored_nl, :on_comment,
         :on_embdoc_beg, :on_embdoc, :on_embdoc_end

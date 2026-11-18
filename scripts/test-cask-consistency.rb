@@ -3,6 +3,9 @@
 # Exercise the comparator's Ruby parsing and release-metadata substitution.
 # These standard-library tests need neither Homebrew nor downloaded archives.
 require "minitest/autorun"
+require "open3"
+require "rbconfig"
+require "tmpdir"
 require_relative "check-cask-consistency"
 
 class CaskConsistencyTest < Minitest::Test
@@ -46,6 +49,92 @@ class CaskConsistencyTest < Minitest::Test
   def test_literal_spelling_remains_significant
     refute CaskConsistency.matches?('binary "aspire"', "binary 'aspire'")
     refute CaskConsistency.matches?('desc "Aspire CLI"', 'desc "Aspire  CLI"')
+  end
+
+  def test_entry_point_accepts_redundant_powershell_heredoc_quotes
+    expected = <<~'RUBY'
+      generated_script "aspire-completion.ps1", content: <<~'POWERSHELL'
+        #requires -Version 7.0
+        & {
+            $completionScript = aspire completions script pwsh | Out-String
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Aspire could not generate PowerShell completions.'
+            }
+            Invoke-Expression $completionScript
+        }
+      POWERSHELL
+    RUBY
+    actual = expected.sub("<<~'POWERSHELL'", "<<~POWERSHELL")
+    assert_entry_point(expected, actual, matches: true)
+    assert_entry_point(actual, expected, matches: true)
+  end
+
+  def test_entry_point_accepts_plain_heredoc_quote_forms
+    ["<<", "<<-", "<<~"].each do |operator|
+      ["'", '"'].each do |quote|
+        expected = "content = #{operator}#{quote}TEXT#{quote}\nplain text\nTEXT\n"
+        actual = "content = #{operator}TEXT\nplain text\nTEXT\n"
+        assert_entry_point(expected, actual, matches: true)
+      end
+    end
+    assert_entry_point("content = <<~'TEXT'\nTEXT\n", "content = <<~TEXT\nTEXT\n", matches: true)
+  end
+
+  def test_entry_point_preserves_heredoc_escape_and_interpolation_semantics
+    [
+      'line\nnext',
+      'two\\\\slashes',
+      "continued\\\nline",
+      '#{version}',
+      '#@version',
+      '#$version',
+      '\#{version}',
+    ].each do |body|
+      expected = "content = <<~'TEXT'\n#{body}\nTEXT\n"
+      ['TEXT', '"TEXT"'].each do |delimiter|
+        actual = "content = <<~#{delimiter}\n#{body}\nTEXT\n"
+        assert_entry_point(expected, actual, matches: false)
+        assert_entry_point(actual, expected, matches: false)
+      end
+    end
+  end
+
+  def test_entry_point_preserves_heredoc_body_operator_and_command_changes
+    expected = "content = <<~'TEXT'\n  plain\nTEXT\n"
+    [
+      "content = <<~TEXT\n  changed\nTEXT\n",
+      "content = <<-TEXT\n  plain\nTEXT\n",
+      "content = <<~`TEXT`\n  plain\nTEXT\n",
+    ].each do |actual|
+      assert_entry_point(expected, actual, matches: false)
+    end
+  end
+
+  def test_entry_point_tracks_multiple_and_nested_heredocs
+    expected = <<~'RUBY'
+      contents = [<<~'TEXT', <<~'TEXT']
+        plain
+      TEXT
+        literal\nescape
+      TEXT
+      nested = <<~OUTER
+        #{<<~'INNER'}
+          plain
+        INNER
+      OUTER
+    RUBY
+    actual = expected.sub("<<~'TEXT'", "<<~TEXT").sub("<<~'INNER'", "<<~INNER")
+    assert_entry_point(expected, actual, matches: true)
+    assert_entry_point(expected, actual.sub("<<~'TEXT'", "<<~TEXT"), matches: false)
+    expected = <<~'RUBY'
+      contents = [<<~'TEXT', <<~'TEXT']
+        literal\nescape
+      TEXT
+        plain
+      TEXT
+    RUBY
+    actual = expected.sub("<<~'TEXT', <<~'TEXT'", "<<~'TEXT', <<~TEXT")
+    assert_entry_point(expected, actual, matches: true)
   end
 
   def test_invalid_ruby_is_an_error
@@ -103,6 +192,30 @@ class CaskConsistencyTest < Minitest::Test
   end
 
   private
+
+  def assert_entry_point(expected, actual, matches:)
+    Dir.mktmpdir("cask-consistency-test") do |directory|
+      cask, metadata, template = ["cask.rb", "metadata.json", "release.template"].map do |name|
+        File.join(directory, name)
+      end
+      File.write(cask, actual)
+      File.write(template, expected)
+      File.write(metadata, JSON.generate("casks" => [{
+        "version" => "13.6.1", "url" => archive_url("arm64"), "sha256" => "a" * 64,
+        "variations" => { "sequoia" => { "url" => archive_url("x64"), "sha256" => "b" * 64 } }
+      }]))
+      stdout, stderr, status = Open3.capture3(
+        RbConfig.ruby, File.expand_path("check-cask-consistency.rb", __dir__), cask, metadata, template
+      )
+      assert_equal(matches ? 0 : 1, status.exitstatus, "#{expected.inspect}\n#{actual.inspect}\n#{stdout}#{stderr}")
+      if matches
+        assert_match "Cask matches release template", stdout
+        assert_empty stderr
+      else
+        assert_match "Release-template drift", stderr
+      end
+    end
+  end
 
   def archive_url(arch)
     "https://github.com/microsoft/aspire/releases/download/v13.6.1/aspire-cli-osx-#{arch}-13.6.1.tar.gz"
