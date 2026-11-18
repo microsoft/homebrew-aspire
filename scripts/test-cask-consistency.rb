@@ -52,7 +52,7 @@ class CaskConsistencyTest < Minitest::Test
   end
 
   def test_entry_point_accepts_redundant_powershell_heredoc_quotes
-    expected = <<~'RUBY'
+    expected = <<~RUBY
       generated_script "aspire-completion.ps1", content: <<~'POWERSHELL'
         #requires -Version 7.0
         & {
@@ -70,8 +70,9 @@ class CaskConsistencyTest < Minitest::Test
   end
 
   def test_entry_point_accepts_plain_heredoc_quote_forms
+    quotes = ["'", '"']
     ["<<", "<<-", "<<~"].each do |operator|
-      ["'", '"'].each do |quote|
+      quotes.each do |quote|
         expected = "content = #{operator}#{quote}TEXT#{quote}\nplain text\nTEXT\n"
         actual = "content = #{operator}TEXT\nplain text\nTEXT\n"
         assert_entry_point(expected, actual, matches: true)
@@ -81,17 +82,18 @@ class CaskConsistencyTest < Minitest::Test
   end
 
   def test_entry_point_preserves_heredoc_escape_and_interpolation_semantics
+    delimiters = ["TEXT", '"TEXT"']
     [
       'line\nnext',
       'two\\\\slashes',
       "continued\\\nline",
-      '#{version}',
+      "\#{version}",
       '#@version',
       '#$version',
       '\#{version}',
     ].each do |body|
       expected = "content = <<~'TEXT'\n#{body}\nTEXT\n"
-      ['TEXT', '"TEXT"'].each do |delimiter|
+      delimiters.each do |delimiter|
         actual = "content = <<~#{delimiter}\n#{body}\nTEXT\n"
         assert_entry_point(expected, actual, matches: false)
         assert_entry_point(actual, expected, matches: false)
