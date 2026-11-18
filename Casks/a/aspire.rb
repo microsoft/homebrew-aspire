@@ -1,9 +1,9 @@
 cask "aspire" do
   arch arm: "arm64", intel: "x64"
 
-  version "13.6.5"
-  sha256 arm:   "08ec2aa32453175d646f9a2a8a3f1ae10c9318af8478c167d96ba2eeaf2034f2",
-         intel: "39c8723ac88d59a3e24e531e541af6fb3a0ef9573cdbf3679dbaaaa271201032"
+  version "17.0.0"
+  sha256 arm:   "9fa37e2ef4a537eca842a30c7bba3b503c62029568b041fed4d11ea62c36178f",
+         intel: "63088bc4e8dbbd28302a81ea5d5099cd0ddf181f3aa3dfaa98f0ca9ab1e8c0e9"
 
   url "https://github.com/microsoft/aspire/releases/download/v#{version}/aspire-cli-osx-#{arch}-#{version}.tar.gz"
   name "Aspire CLI"
@@ -25,7 +25,26 @@ cask "aspire" do
   # platform / single-platform conventions.
   depends_on :macos
 
+  # A normal managed artifact can create share/pwsh and owns uninstall cleanup.
+  # The completion generator's sandbox only permits its final output directory,
+  # so it cannot create a missing share/pwsh parent on a fresh Homebrew install.
+  # https://github.com/Homebrew/brew/blob/main/Library/Homebrew/cask/artifact/generated_completion.rb
+  generated_script "aspire-completion.ps1", content: <<~POWERSHELL
+    #requires -Version 7.0
+    & {
+        $completionScript = aspire completions script pwsh | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Aspire could not generate PowerShell completions.'
+        }
+        Invoke-Expression $completionScript
+    }
+  POWERSHELL
   binary "aspire"
+  # Homebrew owns generation, replacement, and removal; no user profile is edited.
+  # https://docs.brew.sh/Cask-Cookbook#stanza-generate_completions_from_executable
+  generate_completions_from_executable "aspire", "completions", "script",
+                                       shells: [:bash, :zsh, :fish]
+  artifact "aspire-completion.ps1", target: "#{HOMEBREW_PREFIX}/share/pwsh/completions/_aspire.ps1"
 
   # The sidecar tells the CLI which install channel placed this binary, so
   # behaviors like self-update can route through `brew` instead of overwriting
